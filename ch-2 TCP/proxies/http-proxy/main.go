@@ -46,6 +46,7 @@ func appendHostToXForwardHeader(header http.Header, host string) {
 	header.Set("X-Forwarded-For", host)
 }
 
+//Define un tipo que implementa el interface handler, y que por lo tanto podemos usar en un servidor
 type proxy struct {
 }
 
@@ -59,7 +60,7 @@ func (p *proxy) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	//Crea un cliente http
+	//Crea un cliente http, con la configuración por defecto
 	client := &http.Client{}
 
 	//http: Request.RequestURI can't be set in client requests.
@@ -72,6 +73,7 @@ func (p *proxy) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 		appendHostToXForwardHeader(req.Header, clientIP)
 	}
 
+	//Usa la misma request, manipulada, para hacer la petición al backend
 	resp, err := client.Do(req)
 	if err != nil {
 		//Establece en la respuesta un error http

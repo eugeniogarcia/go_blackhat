@@ -6,17 +6,36 @@ __https traffic is encrypted with the session key at the client (and server) sid
 
 ## Código
 
-El http handler del proxy lo que hace es crear un cliente http:
+Implementamos un tipo, proxy, que implementa el interface handler, y que por lo tanto podemos usar en un servidor:
 
 ```go
-	//Crea un cliente http
-	client := &http.Client{}
+//Define un tipo que implementa el interface handler, y que por lo tanto podemos usar en un servidor
+type proxy struct {
+}
+
+func (p *proxy) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 ```
 
-Quitamos hop headers de la petición que hacemos al backend:
+Al crear el servidor usaremos este tipo:
 
 ```go
-	delHopHeaders(req.Header)
+handler := &proxy{}
+if err := http.ListenAndServeTLS(*addr, "gz.com.crt", "gz.com.key", handler); err != nil {
+```
+
+El http handler del proxy lo que hace es crear un cliente http con la configuración por defecto:
+
+```go
+//Crea un cliente http
+client := &http.Client{}
+```
+
+Vamos a usar la misma request que "le llegó" al proxy para enviarla al backend. Naturalmente tenemos que hacer algunas modificaciones antes en la request:
+
+- Quitamos hop headers de la petición que hacemos al backend:
+
+```go
+delHopHeaders(req.Header)
 ```
 
 ```go
@@ -34,12 +53,12 @@ var hopHeaders = []string{
 }
 ```
 
-Fijamos el header `X-Forwarded-For` con la ip del cliente:
+- Fijamos el header `X-Forwarded-For` con la ip del cliente:
 
 ```go
-	if clientIP, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
-		appendHostToXForwardHeader(req.Header, clientIP)
-	}
+if clientIP, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
+	appendHostToXForwardHeader(req.Header, clientIP)
+}
 ```
 
 ```go
@@ -54,7 +73,7 @@ func appendHostToXForwardHeader(header http.Header, host string) {
 }
 ```
 
-y se hace la llamada al backend:
+Con esto ya tenemos la request como queremos, y podemos hacer la llamada al backend:
 
 ```go
 	resp, err := client.Do(req)
@@ -67,7 +86,7 @@ y se hace la llamada al backend:
 	defer resp.Body.Close()
 ```
 
-quitamos los hop-headers, y pasamos las cabeceras, http status code y el body:
+La respuesta que obtenemos del backend la "copiamos" al writer de forma que le llegue a nuestro cliente. Quitamos los hop-headers, y pasamos las cabeceras, http status code y el body:
 
 ```go
 	delHopHeaders(resp.Header)
